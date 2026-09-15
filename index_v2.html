@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>30-Min Task Tracker</title>
+  <style>
+    :root {
+      --bg-color: #f4f6f9;
+      --card-bg: #ffffff;
+      --primary: #2563eb;
+      --inactive: #e5e7eb;
+      --text: #1f2937;
+      --border: #e5e7eb;
+      --highlight: #e0e7ff;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background-color: var(--bg-color);
+      color: var(--text);
+      margin: 0;
+      padding: 16px;
+    }
+
+    .container {
+      max-width: 600px;
+      margin: 0 auto;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+
+    h1 {
+      font-size: 1.5rem;
+      margin-bottom: 8px;
+    }
+
+    .sheet-input-wrapper {
+      background: var(--card-bg);
+      padding: 16px;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+      margin-bottom: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    input[type="text"] {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 0.9rem;
+      box-sizing: border-box;
+    }
+
+    .btn-sync {
+      padding: 10px 20px;
+      background-color: var(--primary);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 0.95rem;
+      cursor: pointer;
+    }
+
+    /* Dot Tracker Grid Styles */
+    .progress-card {
+      background: var(--card-bg);
+      padding: 16px;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+      margin-bottom: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .dot-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(16px, 1fr));
+      gap: 8px;
+      background: #f8fafc;
+      padding: 12px;
+      border-radius: 8px;
+    }
+
+    .dot {
+      width: 16px;
+      height: 16px;
+      border-radius: 4px;
+      transition: background-color 0.2s ease;
+    }
+
+    .dot.completed {
+      background-color: #27ae60;
+    }
+
+    .dot.pending {
+      background-color: #ef4444;
+    }
+
+    .dot.untracked {
+      background-color: var(--inactive);
+    }
+
+    .dot-stats {
+      font-size: 0.85rem;
+      color: #6b7280;
+      display: flex;
+      justify-content: space-between;
+      font-weight: 500;
+    }
+
+    .task-card {
+      background: var(--card-bg);
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 12px;
+      border: 1px solid var(--border);
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .task-card.active {
+      border: 2px solid var(--primary);
+      background-color: var(--highlight);
+    }
+
+    .time-slot {
+      font-weight: bold;
+      color: var(--primary);
+      font-size: 0.9rem;
+    }
+
+    .task-title {
+      font-size: 1.1rem;
+      font-weight: 500;
+    }
+
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      width: fit-content;
+      padding: 2px 8px;
+      border-radius: 6px;
+    }
+
+    .status-badge.completed {
+      background-color: #27ae60;
+      color: #ffffff;
+    }
+
+    .status-badge.pending {
+      background-color: #c0392b;
+      color: #ffffff;
+    }
+
+    .status-badge.untracked {
+      background-color: #f3f4f6;
+      color: #6b7280;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <header>
+      <h1>30-Minute Task Tracker</h1>
+      <p id="current-time-display" style="color: #6b7280; font-size: 0.9rem;"></p>
+    </header>
+
+    <div class="sheet-input-wrapper">
+      <input type="text" id="sheet-url-input" placeholder="Paste Google Sheet Link or Sheet ID" />
+      <button class="btn-sync" onclick="syncGoogleSheet()">Sync Google Sheet</button>
+      <p id="sync-status" style="font-size: 0.85rem; color: #6b7280; margin: 0; text-align: center;"></p>
+    </div>
+
+    <!-- Dot Matrix Container -->
+    <div id="progress-container" class="progress-card" style="display: none;">
+      <div style="font-weight: 600; font-size: 0.95rem;">Activity Matrix</div>
+      <div id="dot-grid" class="dot-grid"></div>
+      <div class="dot-stats">
+        <span id="completed-count">Completed: 0</span>
+        <span id="completion-rate">0%</span>
+      </div>
+    </div>
+
+    <div id="task-list"></div>
+  </div>
+
+  <script>
+    const sheetUrlInput = document.getElementById('sheet-url-input');
+    const syncStatus = document.getElementById('sync-status');
+    const taskList = document.getElementById('task-list');
+    const currentTimeDisplay = document.getElementById('current-time-display');
+    const progressContainer = document.getElementById('progress-container');
+    const dotGrid = document.getElementById('dot-grid');
+    const completedCountDisplay = document.getElementById('completed-count');
+    const completionRateDisplay = document.getElementById('completion-rate');
+
+    // Update real-time clock
+    setInterval(() => {
+      const now = new Date();
+      currentTimeDisplay.innerText = `Current Time: ${now.toLocaleTimeString()}`;
+    }, 1000);
+
+    // Read stored data on page load (runs on manual refresh)
+    window.addEventListener('DOMContentLoaded', () => {
+      const savedSheetId = localStorage.getItem('gsheet_tracker_id');
+      const savedTasks = localStorage.getItem('gsheet_tracker_data');
+
+      if (savedSheetId) {
+        sheetUrlInput.value = savedSheetId;
+      }
+
+      if (savedTasks) {
+        const parsedTasks = JSON.parse(savedTasks);
+        renderTasks(parsedTasks);
+        syncStatus.innerText = "Loaded from cache (refreshing...)";
+      }
+
+      // Perform background sync on manual page refresh
+      if (savedSheetId) {
+        syncGoogleSheet(true);
+      }
+    });
+
+    // Helper to extract Sheet ID from Google Sheet Link
+    function extractSheetId(input) {
+      const match = input.match(/\/d\/([a-zA-Z0-9-_]+)/);
+      return match ? match[1] : input.trim();
+    }
+
+    // Parse CSV line into columns safely handling quotes
+    function parseCSVLine(line) {
+      const result = [];
+      let current = '';
+      let inQuotes = false;
+      for (let i = 0; i < line.length; i++) {
+        const char = line[i];
+        if (char === '"') {
+          inQuotes = !inQuotes;
+        } else if (char === ',' && !inQuotes) {
+          result.push(current.trim());
+          current = '';
+        } else {
+          current += char;
+        }
+      }
+      result.push(current.trim());
+      return result;
+    }
+
+    // Convert raw CSV to Array of Task Objects
+    function csvToObjects(csvText) {
+      const lines = csvText.split(/\r?\n/).filter(line => line.trim() !== '');
+      if (lines.length < 2) return [];
+
+      const headers = parseCSVLine(lines[0]);
+      const tasks = [];
+
+      for (let i = 1; i < lines.length; i++) {
+        const values = parseCSVLine(lines[i]);
+        const row = {};
+        headers.forEach((header, index) => {
+          row[header] = values[index] !== undefined ? values[index] : '';
+        });
+        tasks.push(row);
+      }
+      return tasks;
+    }
+
+    // Fetch Google Sheet data via CSV export endpoint
+    async function syncGoogleSheet(isBackgroundSync = false) {
+      const rawInput = sheetUrlInput.value.trim();
+      if (!rawInput) {
+        syncStatus.innerText = "Please paste a valid Google Sheet URL or ID.";
+        return;
+      }
+
+      const sheetId = extractSheetId(rawInput);
+      localStorage.setItem('gsheet_tracker_id', sheetId);
+
+      if (!isBackgroundSync) {
+        syncStatus.innerText = "Syncing with Google Sheet...";
+      }
+
+      const csvExportUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv`;
+
+      try {
+        const response = await fetch(csvExportUrl);
+        if (!response.ok) {
+          throw new Error("Sheet not accessible. Ensure share settings are set to 'Anyone with the link can view'.");
+        }
+        
+        const csvText = await response.text();
+        const tasks = csvToObjects(csvText);
+
+        // Save updated data to localStorage
+        localStorage.setItem('gsheet_tracker_data', JSON.stringify(tasks));
+        
+        renderTasks(tasks);
+        const lastSyncTime = new Date().toLocaleTimeString();
+        syncStatus.innerText = `Last synced at ${lastSyncTime}`;
+      } catch (err) {
+        syncStatus.innerText = "Error: " + err.message;
+      }
+    }
+
+    // Display tasks and dot progress grid in UI
+    function renderTasks(tasks) {
+      taskList.innerHTML = "";
+      dotGrid.innerHTML = "";
+
+      if (!tasks || tasks.length === 0) {
+        taskList.innerHTML = "<p style='text-align:center;'>No tasks found in sheet.</p>";
+        progressContainer.style.display = 'none';
+        return;
+      }
+
+      progressContainer.style.display = 'flex';
+      let activeCount = 0;
+      let totalTracked = 0;
+
+      tasks.forEach((row, index) => {
+        const keys = Object.keys(row);
+        const timeVal = row['Time'] || row['time'] || row['Time Interval'] || row[keys[0]] || `Slot ${index + 1}`;
+        const rawTaskVal = row['Task / Activity'] || row['Task'] || row['Activity'] || row[keys[1]] || "";
+        const taskVal = rawTaskVal.trim();
+        const statusRaw = row['Status'] || row['status'] || row[keys[2]];
+
+        const statusClean = String(statusRaw !== undefined ? statusRaw : '').trim();
+
+        // Determine status state: 1 (Utilised), 0 (Wasted), or Empty/Other (Not Tracked)
+        let statusState = 'untracked';
+        if (statusClean === '1') {
+          statusState = 'completed';
+          activeCount++;
+          totalTracked++;
+        } else if (statusClean === '0') {
+          statusState = 'pending';
+          totalTracked++;
+        }
+
+        // 1. Create Progress Dot
+        const dot = document.createElement('div');
+        dot.className = `dot ${statusState}`;
+        dot.title = `${timeVal}: ${
+          taskVal ? taskVal + ' - ' : ''
+        }${
+          statusState === 'completed' ? 'Utilised' : statusState === 'pending' ? 'Wasted' : 'Not Tracked'
+        }`;
+        dotGrid.appendChild(dot);
+
+        // 2. Create Task Card ONLY if description exists
+        if (taskVal && taskVal.toLowerCase() !== 'no description') {
+          const card = document.createElement('div');
+          card.className = 'task-card';
+
+          let badgeText = '◌ Not Tracked';
+          if (statusState === 'completed') badgeText = '● Time Utilised';
+          if (statusState === 'pending') badgeText = '○ Time Wasted';
+
+          card.innerHTML = `
+            <span class="time-slot">⏰ ${timeVal}</span>
+            <span class="task-title">${taskVal}</span>
+            <span class="status-badge ${statusState}">
+              ${badgeText}
+            </span>
+          `;
+          taskList.appendChild(card);
+        }
+      });
+
+      // Update aggregate metrics based on tracked items
+      completedCountDisplay.innerText = `Completed: ${activeCount}/${tasks.length}`;
+      const percentage = totalTracked > 0 ? Math.round((activeCount / totalTracked) * 100) : 0;
+      completionRateDisplay.innerText = `${percentage}% Done (of tracked)`;
+    }
+  </script>
+
+</body>
+</html>
