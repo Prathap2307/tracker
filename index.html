@@ -5,14 +5,40 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>30-Min Task Tracker</title>
   <style>
+    /* CSS Variables for Light Mode (Default) */
     :root {
       --bg-color: #f4f6f9;
       --card-bg: #ffffff;
       --primary: #2563eb;
       --inactive: #e5e7eb;
       --text: #1f2937;
+      --subtext: #6b7280;
       --border: #e5e7eb;
       --highlight: #e0e7ff;
+      --grid-bg: #f8fafc;
+      --hour-header-bg: #e2e8f0;
+      --hour-header-text: #374151;
+      --untracked-badge-bg: #f3f4f6;
+      --untracked-badge-text: #6b7280;
+      --input-bg: #ffffff;
+    }
+
+    /* CSS Variables for Dark Mode */
+    [data-theme="dark"] {
+      --bg-color: #0f172a;
+      --card-bg: #1e293b;
+      --primary: #3b82f6;
+      --inactive: #334155;
+      --text: #f8fafc;
+      --subtext: #94a3b8;
+      --border: #334155;
+      --highlight: #1e3a8a;
+      --grid-bg: #0f172a;
+      --hour-header-bg: #334155;
+      --hour-header-text: #f1f5f9;
+      --untracked-badge-bg: #334155;
+      --untracked-badge-text: #94a3b8;
+      --input-bg: #0f172a;
     }
 
     body {
@@ -21,6 +47,7 @@
       color: var(--text);
       margin: 0;
       padding: 16px;
+      transition: background-color 0.3s ease, color 0.3s ease;
     }
 
     .container {
@@ -31,11 +58,75 @@
     header {
       text-align: center;
       margin-bottom: 20px;
+      position: relative;
     }
 
     h1 {
       font-size: 1.5rem;
       margin-bottom: 8px;
+    }
+
+    /* Theme Toggle Switch Header Styling */
+    .theme-toggle-wrapper {
+      display: flex;
+      justify-content: flex-end;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+
+    .theme-toggle-label {
+      font-size: 0.85rem;
+      color: var(--subtext);
+      font-weight: 500;
+    }
+
+    /* The Switch Outer Pill */
+    .switch {
+      position: relative;
+      display: inline-block;
+      width: 46px;
+      height: 24px;
+    }
+
+    /* Hide default HTML checkbox */
+    .switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    /* The Slider */
+    .slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: #cbd5e1;
+      transition: .3s;
+      border-radius: 24px;
+    }
+
+    .slider:before {
+      position: absolute;
+      content: "";
+      height: 18px;
+      width: 18px;
+      left: 3px;
+      bottom: 3px;
+      background-color: white;
+      transition: .3s;
+      border-radius: 50%;
+    }
+
+    input:checked + .slider {
+      background-color: var(--primary);
+    }
+
+    input:checked + .slider:before {
+      transform: translateX(22px);
     }
 
     .sheet-input-wrapper {
@@ -47,12 +138,15 @@
       display: flex;
       flex-direction: column;
       gap: 10px;
+      border: 1px solid var(--border);
     }
 
     input[type="text"] {
       width: 100%;
       padding: 10px 12px;
       border: 1px solid var(--border);
+      background-color: var(--input-bg);
+      color: var(--text);
       border-radius: 8px;
       font-size: 0.9rem;
       box-sizing: border-box;
@@ -79,13 +173,14 @@
       display: flex;
       flex-direction: column;
       gap: 12px;
+      border: 1px solid var(--border);
     }
 
     .dot-grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(16px, 1fr));
       gap: 8px;
-      background: #f8fafc;
+      background: var(--grid-bg);
       padding: 12px;
       border-radius: 8px;
     }
@@ -98,7 +193,7 @@
     }
 
     .dot.completed {
-      background-color: #27ae60;
+      background-color: #22c55e;
     }
 
     .dot.pending {
@@ -111,7 +206,7 @@
 
     .dot-stats {
       font-size: 0.85rem;
-      color: #6b7280;
+      color: var(--subtext);
       display: flex;
       justify-content: space-between;
       font-weight: 500;
@@ -125,9 +220,9 @@
     .hour-header {
       font-size: 1rem;
       font-weight: 700;
-      color: #374151;
+      color: var(--hour-header-text);
       padding: 8px 12px;
-      background-color: #e2e8f0;
+      background-color: var(--hour-header-bg);
       border-radius: 8px;
       margin-bottom: 12px;
       display: flex;
@@ -161,6 +256,7 @@
     .task-title {
       font-size: 1.1rem;
       font-weight: 500;
+      color: var(--text);
     }
 
     .status-badge {
@@ -175,33 +271,41 @@
     }
 
     .status-badge.completed {
-      background-color: #27ae60;
+      background-color: #22c55e;
       color: #ffffff;
     }
 
     .status-badge.pending {
-      background-color: #c0392b;
+      background-color: #ef4444;
       color: #ffffff;
     }
 
     .status-badge.untracked {
-      background-color: #f3f4f6;
-      color: #6b7280;
+      background-color: var(--untracked-badge-bg);
+      color: var(--untracked-badge-text);
     }
   </style>
 </head>
 <body>
 
   <div class="container">
+    <div class="theme-toggle-wrapper">
+      <span class="theme-toggle-label" id="theme-label">Light Mode</span>
+      <label class="switch">
+        <input type="checkbox" id="theme-toggle" onchange="toggleTheme(this)">
+        <span class="slider"></span>
+      </label>
+    </div>
+
     <header>
       <h1>30-Minute Task Tracker</h1>
-      <p id="current-time-display" style="color: #6b7280; font-size: 0.9rem;"></p>
+      <p id="current-time-display" style="color: var(--subtext); font-size: 0.9rem;"></p>
     </header>
 
     <div class="sheet-input-wrapper">
       <input type="text" id="sheet-url-input" placeholder="Paste Google Sheet Link or Sheet ID" />
       <button class="btn-sync" onclick="syncGoogleSheet()">Sync Google Sheet</button>
-      <p id="sync-status" style="font-size: 0.85rem; color: #6b7280; margin: 0; text-align: center;"></p>
+      <p id="sync-status" style="font-size: 0.85rem; color: var(--subtext); margin: 0; text-align: center;"></p>
     </div>
 
     <!-- Dot Matrix Container -->
@@ -226,6 +330,37 @@
     const dotGrid = document.getElementById('dot-grid');
     const completedCountDisplay = document.getElementById('completed-count');
     const completionRateDisplay = document.getElementById('completion-rate');
+    const themeToggle = document.getElementById('theme-toggle');
+    const themeLabel = document.getElementById('theme-label');
+
+    // Theme Mode Toggle Logic
+    function toggleTheme(checkbox) {
+      if (checkbox.checked) {
+        document.documentElement.setAttribute('data-theme', 'dark');
+        themeLabel.innerText = "Dark Mode";
+        localStorage.setItem('gsheet_tracker_theme', 'dark');
+      } else {
+        document.documentElement.setAttribute('data-theme', 'light');
+        themeLabel.innerText = "Light Mode";
+        localStorage.setItem('gsheet_tracker_theme', 'light');
+      }
+    }
+
+    // Load initial Theme Setting
+    function initTheme() {
+      const savedTheme = localStorage.getItem('gsheet_tracker_theme');
+      const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+
+      if (savedTheme === 'dark' || (!savedTheme && prefersDark)) {
+        document.documentElement.setAttribute('data-theme', 'dark');
+        themeToggle.checked = true;
+        themeLabel.innerText = "Dark Mode";
+      } else {
+        document.documentElement.setAttribute('data-theme', 'light');
+        themeToggle.checked = false;
+        themeLabel.innerText = "Light Mode";
+      }
+    }
 
     // Update real-time clock
     setInterval(() => {
@@ -233,8 +368,10 @@
       currentTimeDisplay.innerText = `Current Time: ${now.toLocaleTimeString()}`;
     }, 1000);
 
-    // Read stored data on page load (runs on manual refresh)
+    // Read stored data on page load
     window.addEventListener('DOMContentLoaded', () => {
+      initTheme();
+
       const savedSheetId = localStorage.getItem('gsheet_tracker_id');
       const savedTasks = localStorage.getItem('gsheet_tracker_data');
 
@@ -248,7 +385,6 @@
         syncStatus.innerText = "Loaded from cache (refreshing...)";
       }
 
-      // Perform background sync on manual page refresh
       if (savedSheetId) {
         syncGoogleSheet(true);
       }
@@ -325,7 +461,6 @@
         const csvText = await response.text();
         const tasks = csvToObjects(csvText);
 
-        // Save updated data to localStorage
         localStorage.setItem('gsheet_tracker_data', JSON.stringify(tasks));
         
         renderTasks(tasks);
@@ -336,7 +471,7 @@
       }
     }
 
-    // Helper function to extract the starting hour block (e.g., "13:00 - 14:00")
+    // Helper function to extract the starting hour block
     function getHourGroupLabel(timeStr) {
       const match = timeStr.match(/^(\d{1,2}):/);
       if (match) {
@@ -346,7 +481,7 @@
       return "Other / Untimed";
     }
 
-    // Display tasks grouped by hour and dot progress grid in UI
+    // Display tasks grouped by hour and dot progress grid
     function renderTasks(tasks) {
       taskList.innerHTML = "";
       dotGrid.innerHTML = "";
@@ -361,7 +496,6 @@
       let activeCount = 0;
       let totalTracked = 0;
 
-      // Group structure for task cards
       const groups = {};
 
       tasks.forEach((row, index) => {
@@ -373,7 +507,6 @@
 
         const statusClean = String(statusRaw !== undefined ? statusRaw : '').trim();
 
-        // Determine status state: 1 (Utilised), 0 (Wasted), or Empty/Other (Not Tracked)
         let statusState = 'untracked';
         if (statusClean === '1') {
           statusState = 'completed';
@@ -384,7 +517,6 @@
           totalTracked++;
         }
 
-        // 1. Create Progress Dot
         const dot = document.createElement('div');
         dot.className = `dot ${statusState}`;
         dot.title = `${timeVal}: ${
@@ -394,7 +526,6 @@
         }`;
         dotGrid.appendChild(dot);
 
-        // 2. Group task card ONLY if description exists
         if (taskVal && taskVal.toLowerCase() !== 'no description') {
           const groupLabel = getHourGroupLabel(timeVal);
           if (!groups[groupLabel]) {
@@ -418,7 +549,6 @@
         }
       });
 
-      // Render grouped task cards into taskList
       Object.keys(groups).forEach(hourLabel => {
         const groupWrapper = document.createElement('div');
         groupWrapper.className = 'hour-group';
@@ -435,7 +565,6 @@
         taskList.appendChild(groupWrapper);
       });
 
-      // Update aggregate metrics based on tracked items
       completedCountDisplay.innerText = `Completed: ${activeCount}/${tasks.length}`;
       const percentage = totalTracked > 0 ? Math.round((activeCount / totalTracked) * 100) : 0;
       completionRateDisplay.innerText = `${percentage}% Done (of tracked)`;
