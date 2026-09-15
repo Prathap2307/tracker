@@ -117,6 +117,24 @@
       font-weight: 500;
     }
 
+    /* Grouping Styles */
+    .hour-group {
+      margin-bottom: 24px;
+    }
+
+    .hour-header {
+      font-size: 1rem;
+      font-weight: 700;
+      color: #374151;
+      padding: 8px 12px;
+      background-color: #e2e8f0;
+      border-radius: 8px;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
     .task-card {
       background: var(--card-bg);
       border-radius: 12px;
@@ -318,7 +336,17 @@
       }
     }
 
-    // Display tasks and dot progress grid in UI
+    // Helper function to extract the starting hour block (e.g., "13:00 - 14:00")
+    function getHourGroupLabel(timeStr) {
+      const match = timeStr.match(/^(\d{1,2}):/);
+      if (match) {
+        const hour = match[1].padStart(2, '0');
+        return `${hour}:00 - ${hour}:59`;
+      }
+      return "Other / Untimed";
+    }
+
+    // Display tasks grouped by hour and dot progress grid in UI
     function renderTasks(tasks) {
       taskList.innerHTML = "";
       dotGrid.innerHTML = "";
@@ -332,6 +360,9 @@
       progressContainer.style.display = 'flex';
       let activeCount = 0;
       let totalTracked = 0;
+
+      // Group structure for task cards
+      const groups = {};
 
       tasks.forEach((row, index) => {
         const keys = Object.keys(row);
@@ -363,15 +394,19 @@
         }`;
         dotGrid.appendChild(dot);
 
-        // 2. Create Task Card ONLY if description exists
+        // 2. Group task card ONLY if description exists
         if (taskVal && taskVal.toLowerCase() !== 'no description') {
-          const card = document.createElement('div');
-          card.className = 'task-card';
+          const groupLabel = getHourGroupLabel(timeVal);
+          if (!groups[groupLabel]) {
+            groups[groupLabel] = [];
+          }
 
           let badgeText = '◌ Not Tracked';
           if (statusState === 'completed') badgeText = '● Time Utilised';
           if (statusState === 'pending') badgeText = '○ Time Wasted';
 
+          const card = document.createElement('div');
+          card.className = 'task-card';
           card.innerHTML = `
             <span class="time-slot">⏰ ${timeVal}</span>
             <span class="task-title">${taskVal}</span>
@@ -379,8 +414,25 @@
               ${badgeText}
             </span>
           `;
-          taskList.appendChild(card);
+          groups[groupLabel].push(card);
         }
+      });
+
+      // Render grouped task cards into taskList
+      Object.keys(groups).forEach(hourLabel => {
+        const groupWrapper = document.createElement('div');
+        groupWrapper.className = 'hour-group';
+
+        const header = document.createElement('div');
+        header.className = 'hour-header';
+        header.innerText = `🕐 Hour: ${hourLabel}`;
+        groupWrapper.appendChild(header);
+
+        groups[hourLabel].forEach(cardElement => {
+          groupWrapper.appendChild(cardElement);
+        });
+
+        taskList.appendChild(groupWrapper);
       });
 
       // Update aggregate metrics based on tracked items
