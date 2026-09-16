@@ -21,6 +21,7 @@
       --untracked-badge-bg: #f3f4f6;
       --untracked-badge-text: #6b7280;
       --input-bg: #ffffff;
+      --active-glow: rgba(37, 99, 235, 0.4);
     }
 
     /* CSS Variables for Dark Mode */
@@ -39,6 +40,7 @@
       --untracked-badge-bg: #334155;
       --untracked-badge-text: #94a3b8;
       --input-bg: #0f172a;
+      --active-glow: rgba(59, 130, 246, 0.5);
     }
 
     body {
@@ -141,6 +143,15 @@
       border: 1px solid var(--border);
     }
 
+    /* Clock above input */
+    .time-above-input {
+      text-align: center;
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: var(--primary);
+      margin-bottom: 4px;
+    }
+
     input[type="text"] {
       width: 100%;
       padding: 10px 12px;
@@ -189,7 +200,7 @@
       width: 16px;
       height: 16px;
       border-radius: 4px;
-      transition: background-color 0.2s ease;
+      transition: background-color 0.2s ease, transform 0.2s ease;
     }
 
     .dot.completed {
@@ -204,13 +215,40 @@
       background-color: var(--inactive);
     }
 
+    .dot.active-now {
+      outline: 2px solid var(--primary);
+      outline-offset: 1px;
+      transform: scale(1.2);
+    }
+
+    /* Updated Stats Display Layout */
     .dot-stats {
       font-size: 0.85rem;
       color: var(--subtext);
-      display: flex;
-      justify-content: space-between;
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 8px;
       font-weight: 500;
+      border-top: 1px solid var(--border);
+      padding-top: 10px;
     }
+
+    .stat-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .stat-badge {
+      width: 10px;
+      height: 10px;
+      border-radius: 2px;
+      display: inline-block;
+    }
+
+    .stat-badge.green { background-color: #22c55e; }
+    .stat-badge.red { background-color: #ef4444; }
+    .stat-badge.grey { background-color: var(--inactive); }
 
     /* Grouping Styles */
     .hour-group {
@@ -240,11 +278,26 @@
       display: flex;
       flex-direction: column;
       gap: 6px;
+      transition: all 0.3s ease;
     }
 
-    .task-card.active {
+    /* Highlight style for active current activity card */
+    .task-card.active-now {
       border: 2px solid var(--primary);
       background-color: var(--highlight);
+      box-shadow: 0 0 12px var(--active-glow);
+      position: relative;
+    }
+
+    .task-card.active-now::after {
+      content: "• LIVE NOW";
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      font-size: 0.7rem;
+      font-weight: 700;
+      color: var(--primary);
+      letter-spacing: 0.5px;
     }
 
     .time-slot {
@@ -296,13 +349,15 @@
         <span class="slider"></span>
       </label>
     </div>
-
+<!-- 
     <header>
       <h1>30-Minute Task Tracker</h1>
-      <p id="current-time-display" style="color: var(--subtext); font-size: 0.9rem;"></p>
     </header>
+     -->
 
     <div class="sheet-input-wrapper">
+      <!-- Live clock placed above input field -->
+      <div id="current-time-display" class="time-above-input">Current Time: --:--:--</div>
       <input type="text" id="sheet-url-input" placeholder="Paste Google Sheet Link or Sheet ID" />
       <button class="btn-sync" onclick="syncGoogleSheet()">Sync Google Sheet</button>
       <p id="sync-status" style="font-size: 0.85rem; color: var(--subtext); margin: 0; text-align: center;"></p>
@@ -313,8 +368,12 @@
       <div style="font-weight: 600; font-size: 0.95rem;">Activity Matrix</div>
       <div id="dot-grid" class="dot-grid"></div>
       <div class="dot-stats">
-        <span id="completed-count">Completed: 0</span>
-        <span id="completion-rate">0%</span>
+        <div class="stat-item"><span class="stat-badge green"></span><span id="green-count">Green Count: 0</span></div>
+        <div class="stat-item"><span id="utilized-hours">Time Utilised: 0 hrs</span></div>
+        <div class="stat-item"><span class="stat-badge red"></span><span id="red-count">Red Count: 0</span></div>
+        <div class="stat-item"><span id="wasted-hours">Time Wasted: 0 hrs</span></div>
+        <div class="stat-item"><span class="stat-badge grey"></span><span id="grey-count">Grey Count: 0</span></div>
+        <div class="stat-item"><span id="untracked-hours">Untracked: 0 hrs</span></div>
       </div>
     </div>
 
@@ -328,10 +387,18 @@
     const currentTimeDisplay = document.getElementById('current-time-display');
     const progressContainer = document.getElementById('progress-container');
     const dotGrid = document.getElementById('dot-grid');
-    const completedCountDisplay = document.getElementById('completed-count');
-    const completionRateDisplay = document.getElementById('completion-rate');
+    
+    const greenCountDisplay = document.getElementById('green-count');
+    const redCountDisplay = document.getElementById('red-count');
+    const greyCountDisplay = document.getElementById('grey-count');
+    const utilizedHoursDisplay = document.getElementById('utilized-hours');
+    const wastedHoursDisplay = document.getElementById('wasted-hours');
+    const untrackedHoursDisplay = document.getElementById('untracked-hours');
+    
     const themeToggle = document.getElementById('theme-toggle');
     const themeLabel = document.getElementById('theme-label');
+
+    let currentTasks = [];
 
     // Theme Mode Toggle Logic
     function toggleTheme(checkbox) {
@@ -362,11 +429,68 @@
       }
     }
 
-    // Update real-time clock
+    // Helper: Check if time slot string matches current time
+    function isCurrentTimeSlot(timeStr) {
+      const now = new Date();
+      const currentHours = now.getHours();
+      const currentMinutes = now.getMinutes();
+
+      // Normalize time string (e.g. "09:00 - 09:30" or "9:00 - 9:30" or single time "09:00")
+      const times = timeStr.split('-').map(t => t.trim());
+      if (!times[0]) return false;
+
+      const [startH, startM] = times[0].split(':').map(Number);
+      
+      if (isNaN(startH) || isNaN(startM)) return false;
+
+      let endH = startH;
+      let endM = startM + 30;
+      if (endM >= 60) {
+        endH = (endH + 1) % 24;
+        endM -= 60;
+      }
+
+      if (times.length > 1) {
+        const [parsedEndH, parsedEndM] = times[1].split(':').map(Number);
+        if (!isNaN(parsedEndH) && !isNaN(parsedEndM)) {
+          endH = parsedEndH;
+          endM = parsedEndM;
+        }
+      }
+
+      const currentTotal = currentHours * 60 + currentMinutes;
+      const startTotal = startH * 60 + startM;
+      const endTotal = endH * 60 + endM;
+
+      return currentTotal >= startTotal && currentTotal < endTotal;
+    }
+
+    // Update real-time clock and active highlighting
     setInterval(() => {
       const now = new Date();
       currentTimeDisplay.innerText = `Current Time: ${now.toLocaleTimeString()}`;
+      highlightCurrentSlot();
     }, 1000);
+
+    function highlightCurrentSlot() {
+      if (!currentTasks || currentTasks.length === 0) return;
+
+      const cards = document.querySelectorAll('.task-card');
+      const dots = document.querySelectorAll('.dot');
+
+      currentTasks.forEach((row, index) => {
+        const keys = Object.keys(row);
+        const timeVal = row['Time'] || row['time'] || row['Time Interval'] || row[keys[0]] || '';
+        const isCurrent = isCurrentTimeSlot(timeVal);
+
+        if (cards[index]) {
+          cards[index].classList.toggle('active-now', isCurrent);
+        }
+        if (dots[index]) {
+          dots[index].classList.toggle('active-now', isCurrent);
+        }
+      });
+    }
 
     // Read stored data on page load
     window.addEventListener('DOMContentLoaded', () => {
@@ -381,6 +505,7 @@
 
       if (savedTasks) {
         const parsedTasks = JSON.parse(savedTasks);
+        currentTasks = parsedTasks;
         renderTasks(parsedTasks);
         syncStatus.innerText = "Loaded from cache (refreshing...)";
       }
@@ -461,6 +586,7 @@
         const csvText = await response.text();
         const tasks = csvToObjects(csvText);
 
+        currentTasks = tasks;
         localStorage.setItem('gsheet_tracker_data', JSON.stringify(tasks));
         
         renderTasks(tasks);
@@ -493,8 +619,10 @@
       }
 
       progressContainer.style.display = 'flex';
-      let activeCount = 0;
-      let totalTracked = 0;
+      
+      let greenCount = 0;
+      let redCount = 0;
+      let greyCount = 0;
 
       const groups = {};
 
@@ -510,15 +638,18 @@
         let statusState = 'untracked';
         if (statusClean === '1') {
           statusState = 'completed';
-          activeCount++;
-          totalTracked++;
+          greenCount++;
         } else if (statusClean === '0') {
           statusState = 'pending';
-          totalTracked++;
+          redCount++;
+        } else {
+          greyCount++;
         }
 
+        const isCurrent = isCurrentTimeSlot(timeVal);
+
         const dot = document.createElement('div');
-        dot.className = `dot ${statusState}`;
+        dot.className = `dot ${statusState}${isCurrent ? ' active-now' : ''}`;
         dot.title = `${timeVal}: ${
           taskVal ? taskVal + ' - ' : ''
         }${
@@ -537,7 +668,7 @@
           if (statusState === 'pending') badgeText = '○ Time Wasted';
 
           const card = document.createElement('div');
-          card.className = 'task-card';
+          card.className = `task-card${isCurrent ? ' active-now' : ''}`;
           card.innerHTML = `
             <span class="time-slot">⏰ ${timeVal}</span>
             <span class="task-title">${taskVal}</span>
@@ -565,9 +696,15 @@
         taskList.appendChild(groupWrapper);
       });
 
-      completedCountDisplay.innerText = `Completed: ${activeCount}/${tasks.length}`;
-      const percentage = totalTracked > 0 ? Math.round((activeCount / totalTracked) * 100) : 0;
-      completionRateDisplay.innerText = `${percentage}% Done (of tracked)`;
+      // Update total counts
+      greenCountDisplay.innerText = `Green Count: ${greenCount}`;
+      redCountDisplay.innerText = `Red Count: ${redCount}`;
+      greyCountDisplay.innerText = `Grey Count: ${greyCount}`;
+
+      // Calculate hours assuming each slot equals 30 mins (0.5 hours)
+      utilizedHoursDisplay.innerText = `Time Utilised: ${greenCount * 0.5} hrs`;
+      wastedHoursDisplay.innerText = `Time Wasted: ${redCount * 0.5} hrs`;
+      untrackedHoursDisplay.innerText = `Untracked: ${greyCount * 0.5} hrs`;
     }
   </script>
 
