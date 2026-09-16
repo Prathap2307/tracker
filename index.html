@@ -701,10 +701,11 @@
       redCountDisplay.innerText = `Red Count: ${redCount}`;
       greyCountDisplay.innerText = `Grey Count: ${greyCount}`;
 
-      // Calculate hours assuming each slot equals 30 mins (0.5 hours)
-      utilizedHoursDisplay.innerText = `Time Utilised: ${greenCount * 0.5} hrs`;
-      wastedHoursDisplay.innerText = `Time Wasted: ${redCount * 0.5} hrs`;
-      untrackedHoursDisplay.innerText = `Untracked: ${greyCount * 0.5} hrs`;
+      // Calculate hours assuming each slot equals 15 mins (0.25 hours)
+utilizedHoursDisplay.innerText = `Time Utilised: ${greenCount * 0.25} hrs`;
+wastedHoursDisplay.innerText = `Time Wasted: ${redCount * 0.25} hrs`;
+untrackedHoursDisplay.innerText = `Untracked: ${greyCount * 0.25} hrs`;
+
     }
   </script>
 
